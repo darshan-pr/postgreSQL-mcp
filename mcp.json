@@ -1,0 +1,105 @@
+{
+  "name": "postgresql-mcp-optimized",
+  "version": "2.0.0",
+  "description": "Optimized PostgreSQL MCP server with read-only enforcement, complex query support, and auto-execution",
+  "tools": [
+    {
+      "name": "list_databases",
+      "description": "List all accessible PostgreSQL databases. Use this to discover available databases before querying.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "get_schema",
+      "description": "Get complete database schema showing all tables, columns, data types, nullable flags, and key constraints (PRIMARY KEY, FOREIGN KEY). ALWAYS USE THIS FIRST to understand the database structure before writing any queries. Essential for complex queries with JOINs.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Optional: Name of database to inspect (e.g., 'mydb', 'production'). Uses default database from environment if not specified."
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "get_relationships",
+      "description": "Get foreign key relationships between tables showing how tables are connected. Use this before writing JOIN queries to understand the relationships. Shows mappings like: table.column → referenced_table.referenced_column",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Optional: Name of database. Uses default if not specified."
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "run_sql",
+      "description": "Execute READ-ONLY SQL queries with full support for: SELECT statements, WITH clauses (CTEs/Common Table Expressions), EXPLAIN for query analysis, Complex JOINs (INNER, LEFT, RIGHT, FULL OUTER), Subqueries and nested queries, Window functions (ROW_NUMBER, RANK, etc.), Aggregations (GROUP BY, HAVING), Set operations (UNION, INTERSECT, EXCEPT). Executes automatically without permission prompts. STRICT READ-ONLY: Cannot INSERT, UPDATE, DELETE, DROP, TRUNCATE, ALTER, CREATE, or modify data in any way. For data insertion, use insert_data tool instead.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Valid SQL query (SELECT, WITH, or EXPLAIN). Supports all read-only operations including complex JOINs, CTEs, subqueries, window functions, aggregations. Recommendation: Add LIMIT clause for queries that may return large result sets (>1000 rows). Example: 'SELECT u.*, o.total FROM users u LEFT JOIN orders o ON u.id = o.user_id WHERE u.active = true LIMIT 100'"
+          },
+          "database": {
+            "type": "string",
+            "description": "Optional: Database name to execute query against. Uses default if not specified."
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "get_query_stats",
+      "description": "Analyze query execution plan and get performance statistics WITHOUT actually executing the query. Returns estimated row counts, cost estimates, and execution plan details. Useful for optimizing complex queries before running them on large datasets.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "SQL query to analyze (must be a read-only query)"
+          },
+          "database": {
+            "type": "string",
+            "description": "Optional: Database name"
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "insert_data",
+      "description": "INSERT/ADD NEW RECORDS to a table. This is the ONLY tool that can add data to the database - run_sql cannot insert. Use when user requests: 'insert', 'add records', 'create entries', 'populate table'. WORKFLOW: 1) Call get_schema first to verify table and column names, 2) Prepare data as array of objects with column names as keys, 3) Call this tool with table name and data array. Example: insert_data('students', [{'student_id': 101, 'first_name': 'John', 'last_name': 'Doe', 'email': 'john@example.com'}, {'student_id': 102, 'first_name': 'Jane', 'last_name': 'Smith', 'email': 'jane@example.com'}]). All records must have the same columns.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "table": {
+            "type": "string",
+            "description": "Name of the table to insert data into. Must match exactly with table name from get_schema. Case-sensitive."
+          },
+          "data": {
+            "type": "array",
+            "description": "Array of objects where each object represents one row to insert. Object keys must be valid column names from the table schema. All objects must have the same set of keys. Example: [{'name': 'John Doe', 'email': 'john@example.com', 'age': 30}, {'name': 'Jane Smith', 'email': 'jane@example.com', 'age': 25}]",
+            "items": {
+              "type": "object"
+            }
+          },
+          "database": {
+            "type": "string",
+            "description": "Optional: Database name to insert into. Uses default if not specified."
+          }
+        },
+        "required": ["table", "data"]
+      }
+    }
+  ]
+}
