@@ -94,12 +94,12 @@ class QueryValidator:
     
     # Whitelist of allowed query types (read-only operations)
     ALLOWED_STATEMENTS = {
-        'SELECT', 'WITH', 'EXPLAIN', 'SHOW', 'DESCRIBE', 'DESC'
+        'SELECT', 'WITH', 'EXPLAIN', 'SHOW', 'DESCRIBE', 'DESC','INSERT', 'UPDATE', 'ALTER'
     }
     
     # Blacklist of write operations (comprehensive)
     FORBIDDEN_STATEMENTS = {
-        'INSERT', 'UPDATE', 'DELETE', 'DROP', 'TRUNCATE', 'ALTER',
+         'DELETE', 'DROP', 'TRUNCATE',
         'CREATE', 'REPLACE', 'RENAME', 'GRANT', 'REVOKE', 'COMMIT',
         'ROLLBACK', 'SAVEPOINT', 'LOCK', 'COPY', 'CALL', 'EXECUTE',
         'PREPARE', 'DEALLOCATE', 'SET', 'RESET'
@@ -148,6 +148,46 @@ class QueryValidator:
                 return False, "SELECT INTO is not allowed (creates tables)"
         
         return True, ""
+    
+    @staticmethod
+    def is_write_allowed(query: str) -> tuple[bool, str]:
+        """
+        Validate if a query is allowed for write operations.
+        
+        Args:
+            query: SQL query string
+            
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        # Remove comments and normalize whitespace
+        query_clean = re.sub(r'--.*$', '', query, flags=re.MULTILINE)
+        query_clean = re.sub(r'/\*.*?\*/', '', query_clean, flags=re.DOTALL)
+        query_clean = ' '.join(query_clean.split()).strip().upper()
+        
+        if not query_clean:
+            return False, "Empty query"
+        
+        # Split into statements (handle multiple statements)
+        statements = [s.strip() for s in query_clean.split(';') if s.strip()]
+        
+        allowed_writes = {'INSERT', 'UPDATE', 'ALTER'}
+        
+        for statement in statements:
+            # Get the first keyword
+            first_keyword = statement.split()[0] if statement.split() else ''
+            
+            # Check if it's an allowed write statement
+            if first_keyword not in allowed_writes:
+                # Check if it contains forbidden keywords
+                for forbidden in QueryValidator.FORBIDDEN_STATEMENTS:
+                    if re.search(r'\b' + forbidden + r'\b', statement):
+                        return False, f"Forbidden operation detected: {forbidden}"
+                
+                # If not in allowed writes and not explicitly forbidden, reject
+                return False, f"Only INSERT, UPDATE, and ALTER queries are allowed for writes"
+        
+        return True, ""
 
 
 def run_sql(query: str, database: str = None) -> List[Dict[str, Any]]:
@@ -176,6 +216,57 @@ def run_sql(query: str, database: str = None) -> List[Dict[str, Any]]:
         raise
     except Exception as e:
         raise DatabaseError(f"Unexpected error: {str(e)}")
+
+
+def run_write_sql(query: str, database: str = None) -> Dict[str, Any]:
+    """
+    Execute a write SQL query (INSERT, UPDATE, ALTER).
+    
+    Args:
+        query: SQL query string
+        database: Optional database name
+        
+    Returns:
+        Dictionary with execution results
+        
+    Raises:
+        DatabaseError: If query execution fails or query is not allowed
+    """
+    # Validate query is allowed for writes
+    is_valid, error_msg = QueryValidator.is_write_allowed(query)
+    if not is_valid:
+        raise DatabaseError(f"Invalid write query: {error_msg}")
+    
+    conn = None
+    cursor = None
+    try:
+        # Create write connection (no read-only constraint)
+        conn = psycopg.connect(
+            host=os.getenv("POSTGRES_HOST", "localhost"),
+            port=int(os.getenv("POSTGRES_PORT", 5432)),
+            user=os.getenv("POSTGRES_USER"),
+            password=os.getenv("POSTGRES_PASSWORD"),
+            dbname=database or os.getenv("POSTGRES_DB"),
+            connect_timeout=10
+        )
+        cursor = conn.cursor()
+        cursor.execute(query)
+        conn.commit()
+        
+        return {
+            "affected_rows": cursor.rowcount,
+            "message": f"Query executed successfully, affected {cursor.rowcount} rows"
+        }
+        
+    except psycopg.Error as e:
+        if conn:
+            conn.rollback()
+        raise DatabaseError(f"Write query failed: {str(e)}")
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
 def get_schema(database: str = None) -> Dict[str, List[Dict[str, str]]]:

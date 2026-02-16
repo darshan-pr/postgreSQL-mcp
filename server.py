@@ -6,7 +6,7 @@ Optimized version with automatic query execution and better error handling.
 from fastapi import FastAPI, Request
 from postgresql_tools import (
     run_sql, get_schema, get_relationships, insert_data, 
-    list_databases, get_query_stats, DatabaseError
+    list_databases, get_query_stats, run_write_sql, DatabaseError
 )
 import json
 from typing import Dict, Any
@@ -159,6 +159,22 @@ class ResultFormatter:
         return "\n".join(lines)
     
     @staticmethod
+    def write_result(result: dict, query: str, db_info: str = "") -> str:
+        """Format write operation results."""
+        lines = [
+            f"✅ Write query executed successfully{db_info}",
+            f"📊 Rows affected: {result['affected_rows']}",
+            "",
+            "Query:",
+            "-" * 50,
+            query,
+            "",
+            f"Message: {result['message']}"
+        ]
+        
+        return "\n".join(lines)
+    
+    @staticmethod
     def query_stats(stats: dict, db_info: str = "") -> str:
         """Format query statistics."""
         lines = [
@@ -224,6 +240,23 @@ TOOLS = {
                 "query": {
                     "type": "string",
                     "description": "SQL query (SELECT, WITH, EXPLAIN). Supports complex queries with JOINs, CTEs, subqueries. Add LIMIT for large result sets."
+                },
+                "database": {
+                    "type": "string",
+                    "description": "Optional: Database name. Uses default if not specified."
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    "run_write_sql": {
+        "description": "Execute write queries (INSERT, UPDATE, ALTER). Use this for modifying data or schema. Cannot execute SELECT or other read-only queries.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "SQL query (INSERT, UPDATE, ALTER)"
                 },
                 "database": {
                     "type": "string",
@@ -371,6 +404,14 @@ async def mcp_endpoint(req: Request):
                 
                 result = insert_data(table, data, database)
                 text = ResultFormatter.insert_result(result, db_suffix)
+                
+            elif tool_name == "run_write_sql":
+                query = args.get("query")
+                if not query:
+                    return MCPResponse.error(request_id, "Missing 'query' parameter")
+                
+                result = run_write_sql(query, database)
+                text = ResultFormatter.write_result(result, query, db_suffix)
             
             else:
                 return MCPResponse.error(request_id, f"Tool not implemented: {tool_name}")
