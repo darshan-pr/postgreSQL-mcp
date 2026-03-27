@@ -103,6 +103,10 @@ POSTGRES_CONNECT_TIMEOUT=10
 # Optional: Query Limits
 MAX_ROWS=1000
 QUERY_TIMEOUT=30
+
+# Write Access Control (default: read-only)
+# Set to true only when you intentionally want INSERT/UPDATE/ALTER enabled.
+ALLOW_DB_WRITES=false
 ```
 
 ### SSL/TLS Configuration

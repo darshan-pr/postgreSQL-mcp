@@ -94,12 +94,12 @@ class QueryValidator:
     
     # Whitelist of allowed query types (read-only operations)
     ALLOWED_STATEMENTS = {
-        'SELECT', 'WITH', 'EXPLAIN', 'SHOW', 'DESCRIBE', 'DESC','INSERT', 'UPDATE', 'ALTER'
+        'SELECT', 'WITH', 'EXPLAIN', 'SHOW', 'DESCRIBE', 'DESC'
     }
     
     # Blacklist of write operations (comprehensive)
     FORBIDDEN_STATEMENTS = {
-         'DELETE', 'DROP', 'TRUNCATE',
+        'INSERT', 'UPDATE', 'ALTER', 'DELETE', 'DROP', 'TRUNCATE',
         'CREATE', 'REPLACE', 'RENAME', 'GRANT', 'REVOKE', 'COMMIT',
         'ROLLBACK', 'SAVEPOINT', 'LOCK', 'COPY', 'CALL', 'EXECUTE',
         'PREPARE', 'DEALLOCATE', 'SET', 'RESET'
@@ -139,7 +139,10 @@ class QueryValidator:
                         return False, f"Forbidden operation detected: {forbidden}"
                 
                 # If not in whitelist and not explicitly forbidden, reject for safety
-                return False, f"Only SELECT, WITH (CTEs), and EXPLAIN queries are allowed"
+                return False, (
+                    "Only read-only queries are allowed (SELECT, WITH, EXPLAIN, SHOW). "
+                    "Use run_write_sql or insert_data for writes."
+                )
         
         # Additional safety checks
         if 'INTO' in query_clean and 'SELECT' in query_clean:
@@ -148,7 +151,7 @@ class QueryValidator:
                 return False, "SELECT INTO is not allowed (creates tables)"
         
         return True, ""
-    
+        
     @staticmethod
     def is_write_allowed(query: str) -> tuple[bool, str]:
         """
@@ -188,6 +191,17 @@ class QueryValidator:
                 return False, f"Only INSERT, UPDATE, and ALTER queries are allowed for writes"
         
         return True, ""
+
+
+def _is_write_enabled() -> bool:
+    """
+    Check whether write operations are enabled.
+
+    Controlled by ALLOW_DB_WRITES environment variable.
+    Accepted true values: 1, true, yes, on (case-insensitive).
+    """
+    value = os.getenv("ALLOW_DB_WRITES", "false").strip().lower()
+    return value in {"1", "true", "yes", "on"}
 
 
 def run_sql(query: str, database: str = None) -> List[Dict[str, Any]]:
@@ -236,6 +250,11 @@ def run_write_sql(query: str, database: str = None) -> Dict[str, Any]:
     is_valid, error_msg = QueryValidator.is_write_allowed(query)
     if not is_valid:
         raise DatabaseError(f"Invalid write query: {error_msg}")
+    if not _is_write_enabled():
+        raise DatabaseError(
+            "Write operations are disabled by configuration. "
+            "Set ALLOW_DB_WRITES=true to enable INSERT/UPDATE/ALTER queries."
+        )
     
     conn = None
     cursor = None
@@ -396,6 +415,11 @@ def insert_data(table: str, data: List[Dict[str, Any]], database: str = None) ->
     
     if not data or not isinstance(data, list) or not data:
         raise DatabaseError("Data must be a non-empty list of dictionaries")
+    if not _is_write_enabled():
+        raise DatabaseError(
+            "Write operations are disabled by configuration. "
+            "Set ALLOW_DB_WRITES=true to enable inserts."
+        )
     
     # Validate table name (alphanumeric and underscores only)
     if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', table):

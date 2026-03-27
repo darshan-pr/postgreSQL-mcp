@@ -78,7 +78,7 @@
     },
     {
       "name": "insert_data",
-      "description": "INSERT/ADD NEW RECORDS to a table. This is the ONLY tool that can add data to the database - run_sql cannot insert. Use when user requests: 'insert', 'add records', 'create entries', 'populate table'. WORKFLOW: 1) Call get_schema first to verify table and column names, 2) Prepare data as array of objects with column names as keys, 3) Call this tool with table name and data array. Example: insert_data('students', [{'student_id': 101, 'first_name': 'John', 'last_name': 'Doe', 'email': 'john@example.com'}, {'student_id': 102, 'first_name': 'Jane', 'last_name': 'Smith', 'email': 'jane@example.com'}]). All records must have the same columns.",
+      "description": "INSERT/ADD NEW RECORDS to a table. Requires ALLOW_DB_WRITES=true in environment. This is the ONLY tool that can add data to the database - run_sql cannot insert. Use when user requests: 'insert', 'add records', 'create entries', 'populate table'. WORKFLOW: 1) Call get_schema first to verify table and column names, 2) Prepare data as array of objects with column names as keys, 3) Call this tool with table name and data array. Example: insert_data('students', [{'student_id': 101, 'first_name': 'John', 'last_name': 'Doe', 'email': 'john@example.com'}, {'student_id': 102, 'first_name': 'Jane', 'last_name': 'Smith', 'email': 'jane@example.com'}]). All records must have the same columns.",
       "input_schema": {
         "type": "object",
         "properties": {

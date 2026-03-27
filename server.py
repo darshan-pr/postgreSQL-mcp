@@ -250,7 +250,7 @@ TOOLS = {
         }
     },
     "run_write_sql": {
-        "description": "Execute write queries (INSERT, UPDATE, ALTER). Use this for modifying data or schema. Cannot execute SELECT or other read-only queries.",
+        "description": "Execute write queries (INSERT, UPDATE, ALTER). Requires ALLOW_DB_WRITES=true in environment. Use this for modifying data or schema. Cannot execute SELECT or other read-only queries.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -284,7 +284,7 @@ TOOLS = {
         }
     },
     "insert_data": {
-        "description": "INSERT new records into a table. This is the ONLY way to add data (run_sql cannot insert). Use after calling get_schema to verify column names. Example: insert_data('users', [{'name': 'John', 'email': 'john@example.com'}])",
+        "description": "INSERT new records into a table. Requires ALLOW_DB_WRITES=true in environment. This is the ONLY way to add data (run_sql cannot insert). Use after calling get_schema to verify column names. Example: insert_data('users', [{'name': 'John', 'email': 'john@example.com'}])",
         "input_schema": {
             "type": "object",
             "properties": {
